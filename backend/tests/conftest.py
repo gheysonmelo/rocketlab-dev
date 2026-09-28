@@ -1,4 +1,6 @@
 from collections.abc import AsyncIterator
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 import httpx
@@ -8,7 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.db.base import Base
 from app.db.session import enable_sqlite_foreign_keys, get_db
 from app.main import app
-from app.movies.models import DimGenre, DimMovie, DimPerson, DimReview
+from app.movies.models import (
+    DimCompany,
+    DimGenre,
+    DimMovie,
+    DimPerson,
+    DimReview,
+    FactMoviePerformance,
+)
 
 
 def sample_movies() -> list[DimMovie]:
@@ -23,6 +32,10 @@ def sample_movies() -> list[DimMovie]:
         sk_person_id="p-nolan", nome_pessoa="Christopher Nolan", tipo_pessoa="Diretor"
     )
     murphy = DimPerson(sk_person_id="p-murphy", nome_pessoa="Cillian Murphy", tipo_pessoa="Ator")
+    nolan_writer = DimPerson(
+        sk_person_id="p-nolan-w", nome_pessoa="Christopher Nolan", tipo_pessoa="Roteirista"
+    )
+    universal = DimCompany(sk_company_id="c-universal", nome_produtora="Universal Pictures")
 
     return [
         DimMovie(
@@ -31,8 +44,22 @@ def sample_movies() -> list[DimMovie]:
             titulo="Oppenheimer",
             ano_lancamento=2023,
             url_poster="https://image.tmdb.org/t/p/w500/oppenheimer.jpg",
+            data_lancamento=date(2023, 7, 19),
+            duracao_minutos=181,
+            status_filme="Lançado",
+            sinopse="The story of J. Robert Oppenheimer.",
             genres=[history, drama],
-            people=[murphy, nolan],
+            people=[murphy, nolan, nolan_writer],
+            companies=[universal],
+            performance=FactMoviePerformance(
+                orcamento_usd=Decimal("100000000.00"),
+                receita_usd=Decimal("975000000.00"),
+                lucro_usd=Decimal("875000000.00"),
+                lucro_brl=Decimal("0"),
+                popularidade=80.5,
+                nota_tmdb=8.1,
+                qtd_tmdb=9000,
+            ),
             reviews_summary=DimReview(
                 sk_review_id="m-oppenheimer", qtd_avaliacoes_usuarios=2, nota_media_usuarios=8.8
             ),
@@ -44,6 +71,12 @@ def sample_movies() -> list[DimMovie]:
             ano_lancamento=2017,
             genres=[drama],
             people=[nolan],
+            # Como nos CSVs: sem receita, o "lucro" vem como -orçamento.
+            performance=FactMoviePerformance(
+                orcamento_usd=Decimal("100000000.00"),
+                lucro_usd=Decimal("-100000000.00"),
+                lucro_brl=Decimal("0"),
+            ),
         ),
         DimMovie(sk_movie_id="m-wolf", id_filme="525662", titulo="100% Wolf", ano_lancamento=2020),
     ]

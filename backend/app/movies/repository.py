@@ -49,3 +49,20 @@ async def list_movies(
     )
     movies = (await session.scalars(stmt)).all()
     return list(movies), total
+
+
+async def get_movie(session: AsyncSession, movie_id: str) -> DimMovie | None:
+    """Filme com todos os relacionamentos que a ficha exibe, ou None se não existir."""
+
+    stmt = (
+        select(DimMovie)
+        .where(DimMovie.sk_movie_id == movie_id)
+        .options(
+            selectinload(DimMovie.reviews_summary),
+            selectinload(DimMovie.genres),
+            selectinload(DimMovie.people),  # todas: diretores, roteiristas e elenco
+            selectinload(DimMovie.companies),
+            selectinload(DimMovie.performance),
+        )
+    )
+    return (await session.scalars(stmt)).one_or_none()
