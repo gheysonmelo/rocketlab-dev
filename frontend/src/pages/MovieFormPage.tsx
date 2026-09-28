@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { ApiError } from '@/api/client'
 import { useGenres, useMovie, useSaveMovie } from '@/api/queries'
 import { MOVIE_STATUSES, type MovieDetail, type MovieStatus, type MovieWrite } from '@/api/types'
+import { DatePicker } from '@/components/DatePicker'
 import { MoviePoster } from '@/components/MoviePoster'
 import { Select } from '@/components/Select'
 import { Button, Field, Input, Textarea } from '@/components/ui'
@@ -104,14 +105,14 @@ function MovieForm({ movie }: { movie?: MovieDetail }) {
             />
           </Field>
           <Field label="Data de lançamento" error={errors.data_lancamento}>
-            <Input
-              type="date"
+            <DatePicker
+              label="Data de lançamento"
               value={form.data_lancamento}
-              onChange={(e) => {
-                const date = e.target.value
+              defaultYear={/^\d{4}$/.test(form.ano_lancamento) ? Number(form.ano_lancamento) : undefined}
+              onChange={(date) =>
                 // Ao escolher a data, o ano é preenchido automaticamente.
                 setForm((c) => ({ ...c, data_lancamento: date, ano_lancamento: date ? date.slice(0, 4) : c.ano_lancamento }))
-              }}
+              }
             />
           </Field>
           <Field label="Duração (min)" error={errors.duracao_minutos}>
