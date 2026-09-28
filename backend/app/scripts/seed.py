@@ -12,11 +12,13 @@ import csv
 import sqlite3
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from sqlalchemy.engine import make_url
 
 from app.core.config import get_settings
+from app.scripts.cleaning import clean_movie, is_not_a_person
 
 # backend/app/scripts/seed.py -> raiz do repositório
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -37,6 +39,13 @@ LOAD_ORDER = [
     # Atenção: o arquivo se chama "movies_reviews", mas a tabela é "movie_reviews".
     ("movie_reviews", "movies_reviews.csv"),
 ]
+
+Row = dict[str, str | None]
+
+# Limpeza aplicada linha a linha antes do INSERT (ver app/scripts/cleaning.py).
+CLEANERS: dict[str, Callable[[Row], Row]] = {
+    "dim_movies": clean_movie,
+}
 
 
 def find_csv(data_dir: Path, filename: str) -> Path:
@@ -69,12 +78,27 @@ def read_csv(path: Path) -> tuple[list[str], list[list[str | None]]]:
 
 def load_table(connection: sqlite3.Connection, table: str, path: Path) -> int:
     columns, rows = read_csv(path)
+    cleaner = CLEANERS.get(table)
+    if cleaner:
+        cleaned = (cleaner(dict(zip(columns, row, strict=True))) for row in rows)
+        rows = [[row[column] for column in columns] for row in cleaned]
     placeholders = ", ".join("?" for _ in columns)
     sql = f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders})"
     # executemany envia todas as linhas num só comando preparado: bem mais rápido
     # do que um INSERT por linha.
     connection.executemany(sql, rows)
     return len(rows)
+
+
+def remove_placeholder_people(connection: sqlite3.Connection) -> int:
+    """Apaga "pessoas" que são idiomas, países, gêneros ou números, e seus vínculos."""
+
+    people = connection.execute("SELECT sk_person_id, nome_pessoa FROM dim_people")
+    ids = [(person_id,) for person_id, name in people if is_not_a_person(name)]
+    # Vínculos primeiro: com as FKs ligadas, a pessoa não pode sumir antes deles.
+    connection.executemany("DELETE FROM bridge_movie_person WHERE sk_person_id = ?", ids)
+    connection.executemany("DELETE FROM dim_people WHERE sk_person_id = ?", ids)
+    return len(ids)
 
 
 def seed(db_path: Path, data_dir: Path, reset: bool) -> None:
@@ -102,6 +126,8 @@ def seed(db_path: Path, data_dir: Path, reset: bool) -> None:
                 started = time.perf_counter()
                 count = load_table(connection, table, files[table])
                 print(f"{table:<25} {count:>9,} linhas  {time.perf_counter() - started:5.1f}s")
+            removed = remove_placeholder_people(connection)
+            print(f"{'dim_people':<25} {removed:>9,} removidas (idiomas, países, gêneros...)")
     finally:
         connection.close()
 
