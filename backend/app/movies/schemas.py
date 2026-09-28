@@ -1,10 +1,11 @@
 """Contratos (Pydantic) das respostas da API de filmes."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     BeforeValidator,
     ConfigDict,
@@ -229,3 +230,39 @@ class MovieWrite(BaseModel):
         elif self.ano_lancamento != self.data_lancamento.year:
             raise ValueError("ano_lancamento deve ser o mesmo ano de data_lancamento.")
         return self
+
+
+# ---------------------------------------------------------------------------
+# Avaliações
+# ---------------------------------------------------------------------------
+
+
+def _as_utc(value: datetime) -> datetime:
+    # O SQLite grava CURRENT_TIMESTAMP em UTC, mas sem fuso: marcamos como UTC para
+    # o JSON sair com "Z" e o front converter para o horário local.
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+class ReviewRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    sk_movie_review_id: str
+    sk_movie_id: str
+    nome: str
+    nota: float
+    comentario: str
+    created_at: Annotated[datetime, AfterValidator(_as_utc)]
+
+
+class ReviewCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nome: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    nota: int = Field(
+        ge=1,
+        le=10,
+        description="Escala do banco (0 a 10). Cada meia estrela vale 1: 4,5 estrelas = 9.",
+    )
+    comentario: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)
+    ]

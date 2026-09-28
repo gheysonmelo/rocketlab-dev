@@ -1,15 +1,17 @@
-"""Regras de negócio de escrita do catálogo (cadastro, edição e exclusão)."""
+"""Regras de negócio de escrita: filmes (cadastro, edição, exclusão) e avaliações."""
 
 from hashlib import sha256
 from uuid import uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import InvalidDataError, NotFoundError
-from app.movies.models import DimGenre, DimMovie, DimPerson
-from app.movies.schemas import DIRECTOR, MovieWrite
+from app.movies import repository
+from app.movies.models import DimGenre, DimMovie, DimPerson, DimReview, MovieReview
+from app.movies.schemas import DIRECTOR, MovieWrite, ReviewCreate
 
 
 def _sha256(text: str) -> str:
@@ -104,4 +106,82 @@ async def delete_movie(session: AsyncSession, movie_id: str) -> None:
     result = await session.execute(delete(DimMovie).where(DimMovie.sk_movie_id == movie_id))
     if result.rowcount == 0:
         raise NotFoundError("Filme não encontrado.")
+    await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Avaliações
+# ---------------------------------------------------------------------------
+
+
+async def _ensure_movie_exists(session: AsyncSession, movie_id: str) -> None:
+    found = await session.scalar(
+        select(DimMovie.sk_movie_id).where(DimMovie.sk_movie_id == movie_id)
+    )
+    if found is None:
+        raise NotFoundError("Filme não encontrado.")
+
+
+async def refresh_rating_summary(session: AsyncSession, movie_id: str) -> None:
+    """Recalcula o resumo (dim_reviews) do filme a partir das avaliações individuais.
+
+    Recalcular do zero, em vez de somar e subtrair, garante que o resumo nunca se
+    desalinhe das avaliações. Sem avaliações, o resumo é apagado.
+    """
+
+    count, average = (
+        await session.execute(
+            select(func.count(), func.round(func.avg(MovieReview.nota), 2)).where(
+                MovieReview.sk_movie_id == movie_id
+            )
+        )
+    ).one()
+    if count == 0:
+        await session.execute(delete(DimReview).where(DimReview.sk_movie_id == movie_id))
+        return
+    # "Upsert": cria o resumo na primeira avaliação e atualiza nas seguintes.
+    upsert = sqlite_insert(DimReview).values(
+        sk_review_id=movie_id,  # convenção dos CSVs: sk_review_id = sk_movie_id
+        sk_movie_id=movie_id,
+        qtd_avaliacoes_usuarios=count,
+        nota_media_usuarios=average,
+    )
+    await session.execute(
+        upsert.on_conflict_do_update(
+            index_elements=[DimReview.sk_movie_id],
+            set_={
+                "qtd_avaliacoes_usuarios": upsert.excluded.qtd_avaliacoes_usuarios,
+                "nota_media_usuarios": upsert.excluded.nota_media_usuarios,
+            },
+        )
+    )
+
+
+async def list_reviews(
+    session: AsyncSession, movie_id: str, offset: int, limit: int
+) -> tuple[list[MovieReview], int]:
+    await _ensure_movie_exists(session, movie_id)
+    return await repository.list_reviews(session, movie_id, offset, limit)
+
+
+async def create_review(session: AsyncSession, movie_id: str, data: ReviewCreate) -> MovieReview:
+    await _ensure_movie_exists(session, movie_id)
+    review = MovieReview(sk_movie_id=movie_id, **data.model_dump())
+    session.add(review)
+    await session.flush()  # grava a avaliação antes de recalcular a média
+    await refresh_rating_summary(session, movie_id)
+    await session.commit()  # avaliação e resumo entram juntos, ou nenhum dos dois
+    await session.refresh(review)  # traz o created_at gerado pelo banco
+    return review
+
+
+async def delete_review(session: AsyncSession, movie_id: str, review_id: str) -> None:
+    result = await session.execute(
+        delete(MovieReview)
+        .where(MovieReview.sk_movie_review_id == review_id)
+        .where(MovieReview.sk_movie_id == movie_id)
+    )
+    if result.rowcount == 0:
+        raise NotFoundError("Avaliação não encontrada.")
+    await refresh_rating_summary(session, movie_id)
     await session.commit()

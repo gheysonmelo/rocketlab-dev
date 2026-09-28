@@ -4,11 +4,11 @@ No SQLAlchemy assíncrono não existe lazy loading: todo relacionamento usado
 na resposta precisa ser carregado na própria consulta (``selectinload``).
 """
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.movies.models import DimMovie, DimPerson
+from app.movies.models import DimMovie, DimPerson, MovieReview
 from app.movies.schemas import DIRECTOR
 
 
@@ -68,3 +68,23 @@ async def get_movie(session: AsyncSession, movie_id: str) -> DimMovie | None:
         .execution_options(populate_existing=True)
     )
     return (await session.scalars(stmt)).one_or_none()
+
+
+async def list_reviews(
+    session: AsyncSession, movie_id: str, offset: int, limit: int
+) -> tuple[list[MovieReview], int]:
+    """Uma página das avaliações do filme, das mais recentes para as mais antigas."""
+
+    total = (
+        await session.execute(select(func.count()).where(MovieReview.sk_movie_id == movie_id))
+    ).scalar_one()
+    stmt = (
+        select(MovieReview)
+        .where(MovieReview.sk_movie_id == movie_id)
+        # As avaliações dos CSVs têm o mesmo created_at (horário da carga): o rowid
+        # (ordem de inserção) desempata e mantém a paginação estável.
+        .order_by(MovieReview.created_at.desc(), literal_column("movie_reviews.rowid").desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    return list((await session.scalars(stmt)).all()), total

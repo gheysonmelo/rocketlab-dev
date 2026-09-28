@@ -9,7 +9,13 @@ from app.core.errors import NotFoundError
 from app.core.pagination import Page, PageParams, page_params
 from app.db.session import get_db
 from app.movies import repository, service
-from app.movies.schemas import MovieDetail, MovieSummary, MovieWrite
+from app.movies.schemas import (
+    MovieDetail,
+    MovieSummary,
+    MovieWrite,
+    ReviewCreate,
+    ReviewRead,
+)
 
 Session = Annotated[AsyncSession, Depends(get_db)]
 
@@ -76,4 +82,45 @@ async def update_movie(movie_id: str, data: MovieWrite, session: Session) -> Mov
 )
 async def delete_movie(movie_id: str, session: Session) -> Response:
     await service.delete_movie(session, movie_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@movies_router.get(
+    "/{movie_id}/reviews",
+    response_model=Page[ReviewRead],
+    summary="Avaliações do filme (mais recentes primeiro)",
+    responses=NOT_FOUND,
+)
+async def list_reviews(
+    movie_id: str,
+    session: Session,
+    pagination: Annotated[PageParams, Depends(page_params)],
+) -> Page[ReviewRead]:
+    reviews, total = await service.list_reviews(
+        session, movie_id, pagination.offset, pagination.page_size
+    )
+    return Page[ReviewRead].build(
+        [ReviewRead.model_validate(review) for review in reviews], total, pagination
+    )
+
+
+@movies_router.post(
+    "/{movie_id}/reviews",
+    response_model=ReviewRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Adiciona uma avaliação e recalcula a média",
+    responses=NOT_FOUND,
+)
+async def create_review(movie_id: str, data: ReviewCreate, session: Session) -> ReviewRead:
+    return ReviewRead.model_validate(await service.create_review(session, movie_id, data))
+
+
+@movies_router.delete(
+    "/{movie_id}/reviews/{review_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove uma avaliação e recalcula a média",
+    responses={404: {"description": "Filme ou avaliação não encontrados"}},
+)
+async def delete_review(movie_id: str, review_id: str, session: Session) -> Response:
+    await service.delete_review(session, movie_id, review_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
