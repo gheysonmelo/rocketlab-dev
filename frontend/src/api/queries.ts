@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
-import type { MovieDetail, MovieSummary, MovieWrite, Page, Review, ReviewCreate } from './types'
+import type { Genre, MovieDetail, MovieSummary, MovieWrite, Page, Review, ReviewCreate } from './types'
 
 export const DEFAULT_PAGE_SIZE = 24
 
@@ -20,6 +20,7 @@ export function useMovie(movieId: string) {
   return useQuery({
     queryKey: ['movies', 'detail', movieId],
     queryFn: () => request<MovieDetail>(`/movies/${movieId}`),
+    enabled: Boolean(movieId), // no cadastro não há filme para buscar
   })
 }
 
@@ -73,5 +74,13 @@ export function useDeleteMovie() {
   return useMutation({
     mutationFn: (movieId: string) => request<void>(`/movies/${movieId}`, { method: 'DELETE' }),
     onSuccess: invalidate,
+  })
+}
+
+export function useGenres() {
+  return useQuery({
+    queryKey: ['genres'],
+    queryFn: () => request<Genre[]>('/genres'),
+    staleTime: Infinity, // os 19 gêneros não mudam
   })
 }

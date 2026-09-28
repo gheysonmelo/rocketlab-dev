@@ -12,6 +12,8 @@ interface SelectProps<T extends string | number> {
   onChange: (value: T) => void
   label: string
   className?: string
+  /** Lado em que a lista abre ("top" para campos no rodapé da página). */
+  placement?: 'top' | 'bottom'
 }
 
 /**
@@ -25,6 +27,7 @@ export function Select<T extends string | number>({
   onChange,
   label,
   className = '',
+  placement = 'top',
 }: SelectProps<T>) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
@@ -95,7 +98,9 @@ export function Select<T extends string | number>({
           id={listId}
           role="listbox"
           aria-label={label}
-          className="absolute right-0 bottom-full z-20 mb-2 max-h-64 min-w-full overflow-auto rounded-2xl border border-line bg-primary p-1.5 shadow-xl"
+          className={`absolute right-0 z-20 max-h-64 min-w-full overflow-auto rounded-2xl border border-line bg-primary p-1.5 shadow-xl ${
+            placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
+          }`}
         >
           {options.map((option, index) => {
             const isSelected = option.value === value
