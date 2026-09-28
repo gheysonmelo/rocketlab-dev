@@ -2,6 +2,7 @@ import { Clapperboard, Film, Search } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { DEFAULT_PAGE_SIZE, useCatalog } from '@/api/queries'
+import { CatalogFilters } from '@/components/CatalogFilters'
 import { PillLink } from '@/components/Layout'
 import { MovieCard } from '@/components/MovieCard'
 import { Pagination } from '@/components/Pagination'
@@ -37,16 +38,22 @@ function SearchBar({ initial, onSearch }: { initial: string; onSearch: (q: strin
   )
 }
 
-/** Catálogo paginado. Busca e página ficam na URL (?q=&page=): voltar e links funcionam. */
+/** Catálogo paginado. Busca, filtros e página ficam na URL: voltar e links funcionam. */
 export function CatalogPage() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
+  const filters = {
+    q,
+    genero_id: params.get('genero_id') ?? '',
+    ano: params.get('ano') ?? '',
+    status: params.get('status') ?? '',
+  }
   const page = Math.max(Number(params.get('page')) || 1, 1)
   const requestedSize = Number(params.get('page_size'))
   const pageSize = (PAGE_SIZES as readonly number[]).includes(requestedSize)
     ? requestedSize
     : DEFAULT_PAGE_SIZE
-  const catalog = useCatalog(q, page, pageSize)
+  const catalog = useCatalog(filters, page, pageSize)
 
   /** Atualiza a URL; trocar busca ou tamanho da página volta para a página 1. */
   function update(changes: Record<string, string | number | null>) {
@@ -80,6 +87,13 @@ export function CatalogPage() {
           </PillLink>
         </div>
       </div>
+
+      <CatalogFilters
+        key={`${filters.genero_id}|${filters.status}|${filters.ano}`}
+        filters={filters}
+        onChange={(changes) => update({ ...changes, page: null })}
+        onClear={() => update({ genero_id: null, status: null, ano: null, page: null })}
+      />
 
       {catalog.isPending && <p className="text-muted">Carregando filmes…</p>}
       {catalog.isError && <p className="text-danger">{catalog.error.message}</p>}

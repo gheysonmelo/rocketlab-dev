@@ -1,3 +1,5 @@
+import { clearToken, getToken } from './auth'
+
 /** Erro HTTP da API. `fieldErrors` traz as mensagens de validação (422) por campo. */
 export class ApiError extends Error {
   readonly status: number
@@ -46,13 +48,22 @@ export async function request<T>(
 
   let response: Response
   try {
+    const headers: Record<string, string> = {}
+    if (options.body !== undefined) headers['Content-Type'] = 'application/json'
+    const token = getToken()
+    if (token) headers.Authorization = `Bearer ${token}`
     response = await fetch(url, {
       method: options.method ?? 'GET',
-      headers: options.body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     })
   } catch {
     throw new ApiError(0, 'Não foi possível conectar à API. O backend está rodando?')
+  }
+  // Token ausente, inválido ou expirado: volta para o login (exceto no próprio login).
+  if (response.status === 401 && path !== '/auth/login') {
+    clearToken()
+    window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`)
   }
   if (!response.ok) throw await toApiError(response)
   return (response.status === 204 ? undefined : await response.json()) as T

@@ -4,12 +4,19 @@ import type { Genre, MovieDetail, MovieSummary, MovieWrite, Page, Review, Review
 
 export const DEFAULT_PAGE_SIZE = 24
 
-export function useCatalog(q: string, page: number, pageSize: number) {
+export interface CatalogFilters {
+  q: string
+  genero_id: string
+  ano: string
+  status: string
+}
+
+export function useCatalog(filters: CatalogFilters, page: number, pageSize: number) {
   return useQuery({
-    queryKey: ['movies', 'list', { q, page, pageSize }],
+    queryKey: ['movies', 'list', { ...filters, page, pageSize }],
     queryFn: () =>
       request<Page<MovieSummary>>('/movies', {
-        query: { q: q || undefined, page, page_size: pageSize },
+        query: { ...filters, page, page_size: pageSize },
       }),
     // Mantém a página atual na tela enquanto a próxima carrega.
     placeholderData: keepPreviousData,

@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createBrowserRouter, RouterProvider } from 'react-router'
 import { Layout } from '@/components/Layout'
+import { RequireAuth } from '@/components/RequireAuth'
 import { CatalogPage } from '@/pages/CatalogPage'
+import { LoginPage } from '@/pages/LoginPage'
 import { MovieDetailPage } from '@/pages/MovieDetailPage'
 import { MovieFormPage } from '@/pages/MovieFormPage'
 
@@ -11,8 +13,13 @@ const queryClient = new QueryClient({
 })
 
 const router = createBrowserRouter([
+  { path: '/login', element: <LoginPage /> },
   {
-    element: <Layout />,
+    element: (
+      <RequireAuth>
+        <Layout />
+      </RequireAuth>
+    ),
     children: [
       { index: true, element: <CatalogPage /> },
       { path: 'filmes/novo', element: <MovieFormPage /> },
