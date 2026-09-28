@@ -65,3 +65,25 @@ async def test_list_genres(client: httpx.AsyncClient) -> None:
 
     assert response.status_code == 200
     assert [g["nome_genero"] for g in response.json()] == ["Drama", "History"]
+
+
+@pytest.mark.parametrize(
+    ("params", "expected"),
+    [
+        ({"genero_id": "g-history"}, ["Oppenheimer"]),
+        ({"genero_id": "g-drama"}, ["Dunkirk", "Oppenheimer"]),
+        ({"ano": 2017}, ["Dunkirk"]),
+        ({"status": "Lançado"}, ["Oppenheimer"]),
+        ({"genero_id": "g-drama", "ano": 2023}, ["Oppenheimer"]),  # filtros combinados
+        ({"q": "dunk", "genero_id": "g-history"}, []),
+    ],
+)
+async def test_list_movies_filters(client: httpx.AsyncClient, params: dict, expected: list) -> None:
+    response = await client.get("/movies", params=params)
+
+    assert response.status_code == 200
+    assert titles(response) == expected
+
+
+async def test_list_movies_rejects_invalid_status(client: httpx.AsyncClient) -> None:
+    assert (await client.get("/movies", params={"status": "Cancelado"})).status_code == 422

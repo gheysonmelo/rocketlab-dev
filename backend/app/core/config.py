@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     backend_cors_origins: list[str] = ["http://localhost:5173"]
     log_level: str = "INFO"
 
+    # Autenticação: um único administrador, com credenciais vindas do .env.
+    admin_username: str = "admin"
+    admin_password: str = "cinefilo"
+    jwt_secret: str = "dev-only-troque-este-segredo-jwt-com-32-bytes-ou-mais"
+    jwt_expire_minutes: int = 480
+
 
 @lru_cache
 def get_settings() -> Settings:

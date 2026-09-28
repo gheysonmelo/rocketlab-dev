@@ -19,23 +19,43 @@ def _like_pattern(term: str) -> str:
     return f"%{escaped}%"
 
 
-def _apply_search(stmt: Select, q: str | None) -> Select:
+def _apply_search(
+    stmt: Select,
+    q: str | None,
+    genero_id: str | None = None,
+    ano: int | None = None,
+    status: str | None = None,
+) -> Select:
+    """Busca pelo título e filtros do catálogo (todos opcionais e combináveis)."""
+
     if q:
         stmt = stmt.where(DimMovie.titulo.like(_like_pattern(q), escape="\\"))
+    if genero_id:
+        stmt = stmt.where(DimMovie.genres.any(DimGenre.sk_genre_id == genero_id))
+    if ano is not None:
+        stmt = stmt.where(DimMovie.ano_lancamento == ano)
+    if status:
+        stmt = stmt.where(DimMovie.status_filme == status)
     return stmt
 
 
 async def list_movies(
-    session: AsyncSession, q: str | None, offset: int, limit: int
+    session: AsyncSession,
+    q: str | None,
+    offset: int,
+    limit: int,
+    genero_id: str | None = None,
+    ano: int | None = None,
+    status: str | None = None,
 ) -> tuple[list[DimMovie], int]:
-    """Uma página do catálogo e o total de filmes que atendem à busca."""
+    """Uma página do catálogo e o total de filmes que atendem à busca e aos filtros."""
 
-    total = (
-        await session.execute(_apply_search(select(func.count(DimMovie.sk_movie_id)), q))
-    ).scalar_one()
+    filters = {"genero_id": genero_id, "ano": ano, "status": status}
+    count_stmt = _apply_search(select(func.count(DimMovie.sk_movie_id)), q, **filters)
+    total = (await session.execute(count_stmt)).scalar_one()
 
     stmt = (
-        _apply_search(select(DimMovie), q)
+        _apply_search(select(DimMovie), q, **filters)
         .options(
             selectinload(DimMovie.reviews_summary),
             selectinload(DimMovie.genres),

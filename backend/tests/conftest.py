@@ -7,6 +7,7 @@ import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.auth.security import create_access_token
 from app.db.base import Base
 from app.db.session import enable_sqlite_foreign_keys, get_db
 from app.main import app
@@ -106,7 +107,11 @@ async def client(tmp_path: Path) -> AsyncIterator[httpx.AsyncClient]:
 
     app.dependency_overrides[get_db] = override_get_db
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test/api/v1") as http:
+    # Por padrão o cliente age como administrador logado (rotas de escrita exigem token).
+    headers = {"Authorization": f"Bearer {create_access_token('admin')}"}
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test/api/v1", headers=headers
+    ) as http:
         yield http
     app.dependency_overrides.clear()
     await engine.dispose()
