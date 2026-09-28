@@ -1,72 +1,155 @@
-# RocketLab 2026.2 — repositório base
+# CineFILO — Sistema de Avaliação de Filmes
 
-Base inicial para evoluir a atividade do RocketLab 2026.2. Ela preserva a organização do backend,
-o modelo relacional do catálogo de filmes em SQLAlchemy 2.0 e o histórico de
-migrações com Alembic, sem incluir interface, dados CSV, endpoints de negócio
-ou rotinas de carga.
+Módulo administrativo de um catálogo de filmes inspirado no Letterboxd, desenvolvido na
+atividade DEV do **Rocket Lab 2026 (Visagio)**. O administrador navega por um catálogo de
+~95 mil filmes, vê a ficha completa e o histórico de avaliações, cadastra, edita e remove
+filmes, e registra notas (em meia estrela) e resenhas.
 
-> **Nota:** `RocketLab` é apenas o nome de referência desta base. O diretório,
-> nome do pacote, título da API e arquivo do banco podem ser renomeados para o
-> que preferirem; eles não representam uma exigência da
-> estrutura-base.
+> **Sobre o nome:** *CineFILO* vem de inspiração no **FILO**, um projeto pessoal meu. A
+> identidade visual (tipografia Outfit, paleta, painéis e cards) segue o protótipo de alta
+> fidelidade do FILO no Figma.
+
+| Camada | Tecnologias |
+| --- | --- |
+| Frontend | Vite, React 19, TypeScript, Tailwind CSS 4, React Router, TanStack Query |
+| Backend | FastAPI, SQLAlchemy 2 (assíncrono), Alembic, Pydantic 2 |
+| Banco | SQLite |
+| Qualidade | pytest (66 testes), Ruff, oxlint |
+
+## Requisitos atendidos
+
+| Requisito | Onde |
+| --- | --- |
+| Cadastrar filmes (título, diretor, ano, gênero, sinopse…) | **Novo filme** · `POST /api/v1/movies` |
+| Catálogo paginado | Tela inicial · `GET /api/v1/movies?page=&page_size=` |
+| Detalhes + avaliações já feitas | Clique no card · `GET /api/v1/movies/{id}` e `/reviews` |
+| Barra de pesquisa | Campo **Buscar** · `GET /api/v1/movies?q=` |
+| Remover e atualizar filmes | **Editar** / **Excluir** na ficha · `PUT` / `DELETE /api/v1/movies/{id}` |
+| Nova avaliação (1 a 5 estrelas + resenha) | Formulário na ficha, em meia estrela · `POST /api/v1/movies/{id}/reviews` |
+| Média geral de cada filme | Cards e ficha, com a fração exata da estrela (4,4 = quatro cheias e uma 40% cheia) |
+
+## Como executar
+
+### Pré-requisitos
+
+- **Python 3.11+** e **Node.js 20.19+**
+- Os **CSVs da atividade**, que não são versionados (~230 MB)
+
+### 1. CSVs
+
+Coloque as pastas `bases_atv_dev1/` e `bases_atv_dev_2/` na **raiz do repositório**. A carga
+procura os arquivos pelo nome, inclusive em subpastas; para outro local, use `--data-dir`.
+
+### 2. Backend (http://localhost:8000)
+
+No Windows (Git Bash ou PowerShell), dentro de `backend/`:
+
+```bash
+python -m venv .venv
+source .venv/Scripts/activate      # PowerShell: .venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+cp .env.example .env
+alembic upgrade head               # cria as tabelas
+python -m app.scripts.seed         # carrega e limpa os CSVs (alguns minutos)
+uvicorn app.main:app --reload
+```
+
+No Linux/macOS o fluxo é o mesmo, com `python3` e `source .venv/bin/activate`.
+
+- Documentação interativa: http://localhost:8000/docs
+- Recarregar os dados do zero: `python -m app.scripts.seed --reset`
+- Menos log de SQL no terminal: `ENVIRONMENT=dev` no `.env`
+
+### 3. Frontend (http://localhost:5173)
+
+Em outro terminal, dentro de `frontend/`:
+
+```bash
+npm install
+npm run dev
+```
+
+O Vite repassa `/api` para o backend em `127.0.0.1:8000`, então não é preciso configurar CORS.
+
+### Testes e lint
+
+```bash
+# backend/
+python -m pytest
+ruff check .
+
+# frontend/
+npm run lint
+npm run build      # inclui a checagem de tipos
+```
 
 ## Estrutura
 
 ```text
-.
-├── backend/
-│   ├── app/
-│   │   ├── api/v1/        # ponto de composição dos futuros routers
-│   │   ├── core/          # configurações e logging
-│   │   ├── db/            # Base ORM, engine e sessões
-│   │   └── movies/        # modelos SQLAlchemy do domínio de filmes
-│   ├── migrations/        # ambiente e revisões Alembic
-│   └── tests/
-└── README.md
+backend/app/
+├── core/          # configurações, paginação, erros de domínio
+├── movies/
+│   ├── models.py      # modelo estrela (repositório base)
+│   ├── schemas.py     # contratos Pydantic de entrada e saída
+│   ├── repository.py  # consultas (catálogo, ficha, avaliações, gêneros)
+│   ├── service.py     # regras de escrita (filmes e avaliações)
+│   └── router.py      # endpoints
+└── scripts/
+    ├── seed.py        # carga dos CSVs
+    └── cleaning.py    # regras de limpeza dos dados
+
+frontend/src/
+├── api/           # tipos do contrato, cliente fetch e hooks do TanStack Query
+├── components/    # Layout, MovieCard, StarRating, StarRatingInput, Select, ReviewSection…
+├── lib/           # estrelas, formatação pt-BR, paginação
+└── pages/         # Catálogo, Ficha do filme, Formulário (novo/editar)
 ```
 
-## Execução
+## API (`/api/v1`)
 
-Requer Python 3.11 ou superior.
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| GET | `/movies?page=&page_size=&q=` | Catálogo paginado, com busca pelo título |
+| GET | `/movies/{id}` | Ficha: equipe, elenco, produtoras, desempenho e média |
+| POST | `/movies` | Cadastra um filme |
+| PUT | `/movies/{id}` | Atualiza um filme |
+| DELETE | `/movies/{id}` | Remove o filme e suas avaliações |
+| GET | `/movies/{id}/reviews` | Avaliações paginadas, mais recentes primeiro |
+| POST | `/movies/{id}/reviews` | Nova avaliação (`nome`, `nota` de 1 a 10, `comentario`) |
+| DELETE | `/movies/{id}/reviews/{review_id}` | Remove uma avaliação |
+| GET | `/genres` | Gêneros disponíveis |
 
-```bash
-cd backend
-python3 -m venv .venv
-.venv/bin/pip install -e ".[dev]"
-cp .env.example .env
-.venv/bin/alembic upgrade head
-.venv/bin/uvicorn app.main:app --reload
-```
+## Decisões técnicas
 
-A API mínima ficará disponível em `http://localhost:8000`; use
-`http://localhost:8000/docs` para a documentação automática. O endpoint
-`GET /health` permite conferir se a aplicação iniciou corretamente.
+**Escala das notas.** O banco guarda notas de 0 a 10 (restrição do modelo base e escala dos
+CSVs). A interface usa estrelas de 0,5 a 5, como no Letterboxd: cada meia estrela vale 1
+ponto (4,5 estrelas = 9). A média exibida é `média ÷ 2`, desenhada com a fração exata.
 
-## Banco de dados e migrações
+**Média coerente com as avaliações.** O `dim_reviews.csv` não bate com o
+`movies_reviews.csv` (só ~78% das médias coincidem; 14.561 filmes têm avaliações sem
+resumo). Por isso as avaliações individuais são a fonte da verdade: o resumo é recalculado
+na carga e a cada avaliação criada ou excluída, na mesma transação.
 
-O modelo usa um esquema estrela para o catálogo de filmes:
+**Limpeza dos dados**, feita na carga:
 
-- dimensões de filmes, gêneros, pessoas, produtoras e resumo de avaliações;
-- fato de desempenho financeiro e de engajamento;
-- tabelas de associação N:N entre filmes, gêneros, produtoras e pessoas;
+| Problema nos CSVs | Tratamento |
+| --- | --- |
+| Idiomas, países, gêneros e números cadastrados como pessoas ("English" dirigia 248 filmes) | 1.101 registros e seus vínculos removidos |
+| 1.976 sinopses e 55 títulos com aspas duplicadas (`"texto ""citado"""`) | Desfeita a dupla serialização |
+| Numerais romanos afetados por title-case (`Frozen Ii`) | Corrigidos (`Frozen II`) |
+| Duração 0 em 10.160 filmes | Tratada como desconhecida (`NULL`) |
+| "Lucro" falso em 8.039 filmes (−orçamento sem receita, ou a receita inteira sem orçamento) | A API só expõe o lucro quando há orçamento **e** receita |
 
-O schema corresponde aos nove arquivos CSV atuais da camada Diamond, com a
-adição de `movie_reviews`: uma avaliação individual por linha, na escala 0–10.
-A tabela aceita diretamente as colunas `sk_movie_review_id`, `sk_movie_id`,
-`nome`, `nota` e `comentario` do CSV enviado separadamente. `created_at` é
-gerado pelo banco. O contexto generativo não faz parte desta base.
+Também comparei os CSVs com a camada gold do meu pipeline de engenharia de dados no
+Databricks (mesmo dataset). Os CSVs fornecidos tinham o texto mais íntegro, então foram
+mantidos, com a limpeza acima cobrindo os problemas que os dois tinham em comum.
 
-O repositório não inclui CSVs nem rotinas de carga. Para usar avaliações,
-importe primeiro os filmes em `dim_movies` e depois o CSV de `movie_reviews`.
+**Outras regras.** `id_filme` é o id do TMDB nos CSVs; filmes cadastrados aqui recebem o
+prefixo `rl-`. Diretores existentes são reaproveitados pelo nome (sem diferenciar
+maiúsculas), e a edição troca só os diretores, preservando elenco e roteiro. A exclusão é
+um único `DELETE`, com o `ON DELETE CASCADE` do banco removendo avaliações e vínculos.
 
-As tabelas são criadas exclusivamente pelo Alembic. Para evoluir os modelos,
-crie uma revisão e aplique-a:
-
-```bash
-cd backend
-.venv/bin/alembic revision --autogenerate -m "descreva a alteração"
-.venv/bin/alembic upgrade head
-```
-
-O banco padrão é SQLite local em `backend/rocketlab.db`. Ajuste
-`DATABASE_URL` no arquivo `.env` para usar outro banco compatível.
+**Limitações conhecidas.** Alguns "nomes" de pessoa ainda são fragmentos de frase vindos
+da origem (~500 vínculos de 745 mil), e não foram removidos para não apagar nomes reais
+longos. A carga completa leva alguns minutos, porque confere as chaves estrangeiras linha a
+linha.
