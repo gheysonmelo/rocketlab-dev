@@ -14,7 +14,8 @@ filmes, e registra notas (em meia estrela) e resenhas.
 | Frontend | Vite, React 19, TypeScript, Tailwind CSS 4, React Router, TanStack Query |
 | Backend | FastAPI, SQLAlchemy 2 (assíncrono), Alembic, Pydantic 2 |
 | Banco | SQLite |
-| Qualidade | pytest (66 testes), Ruff, oxlint |
+| Qualidade | pytest (82 testes), Ruff, oxlint |
+| Autenticação | JWT (PyJWT), com o token enviado como `Bearer` |
 
 ## Requisitos atendidos
 
@@ -27,6 +28,8 @@ filmes, e registra notas (em meia estrela) e resenhas.
 | Remover e atualizar filmes | **Editar** / **Excluir** na ficha · `PUT` / `DELETE /api/v1/movies/{id}` |
 | Nova avaliação (1 a 5 estrelas + resenha) | Formulário na ficha, em meia estrela · `POST /api/v1/movies/{id}/reviews` |
 | Média geral de cada filme | Cards e ficha, com a fração exata da estrela (4,4 = quatro cheias e uma 40% cheia) |
+
+**Extras:** login do administrador com JWT, filtros por gênero, status e ano (combináveis com a busca e guardados na URL), paginação numerada com escolha de itens por página, layout responsivo (no celular, a navegação vira uma barra fixa embaixo) e cache de consultas com TanStack Query.
 
 ## Como executar
 
@@ -57,6 +60,7 @@ uvicorn app.main:app --reload
 No Linux/macOS o fluxo é o mesmo, com `python3` e `source .venv/bin/activate`.
 
 - Documentação interativa: http://localhost:8000/docs
+- **Login:** usuário `admin`, senha `cinefilo` (definidos em `ADMIN_USERNAME` e `ADMIN_PASSWORD` no `.env`; troque também o `JWT_SECRET` fora do ambiente local)
 - Recarregar os dados do zero: `python -m app.scripts.seed --reset`
 - Menos log de SQL no terminal: `ENVIRONMENT=dev` no `.env`
 
@@ -109,7 +113,9 @@ frontend/src/
 
 | Método | Rota | Descrição |
 | --- | --- | --- |
-| GET | `/movies?page=&page_size=&q=` | Catálogo paginado, com busca pelo título |
+| POST | `/auth/login` | Login do administrador; devolve o token JWT |
+| GET | `/auth/me` | Usuário do token |
+| GET | `/movies?page=&page_size=&q=&genero_id=&ano=&status=` | Catálogo paginado, com busca pelo título e filtros |
 | GET | `/movies/{id}` | Ficha: equipe, elenco, produtoras, desempenho e média |
 | POST | `/movies` | Cadastra um filme |
 | PUT | `/movies/{id}` | Atualiza um filme |
@@ -120,6 +126,12 @@ frontend/src/
 | GET | `/genres` | Gêneros disponíveis |
 
 ## Decisões técnicas
+
+**Autenticação.** Há um único administrador, com as credenciais no `.env`, então não foi
+necessária uma tabela de usuários nem uma migração. `POST /auth/login` devolve um JWT
+(HS256, 8 h). As rotas de leitura são públicas, e as de escrita (criar, editar e excluir filmes;
+criar e excluir avaliações) exigem `Authorization: Bearer <token>`, respondendo 401 sem ele.
+No front, todas as telas pedem login, e um token expirado leva de volta ao login.
 
 **Escala das notas.** O banco guarda notas de 0 a 10 (restrição do modelo base e escala dos
 CSVs). A interface usa estrelas de 0,5 a 5, como no Letterboxd: cada meia estrela vale 1
