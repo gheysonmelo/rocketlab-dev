@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+/* Identidade do CineFILO, baseada no protótipo FILO (Figma). */
+@theme {
+  /* Outfit em todo o frontend, inclusive botões e campos (o Tailwind herda a fonte neles). */
+  --font-sans: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+
+  /* Cores da marca */
+  --color-primary: #ffffff; /* superfícies: painel, cards, campos */
+  --color-secondary: #d7fe65; /* item ativo da navegação e estrelas */
+  --color-tertiary: #c9eaf6; /* botões em pílula e fim do degradê do fundo */
+  --color-tertiary-strong: #a9e2f2; /* hover dos botões */
+  --color-danger: #d75757; /* erros */
+
+  /* Tons de apoio do protótipo */
+  --color-petrol: #3f8ba1; /* texto dos botões, links e rodapé */
+  --color-slate: #5f7a82; /* logo */
+  --color-title: #575757; /* títulos */
+  --color-text: #6b6b6b; /* texto corrido */
+  --color-muted: #9a9ba0; /* textos pequenos */
+  --color-line: #dcdde3; /* bordas */
+  --color-card: #f3f4fa; /* fundo dos cards */
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    accent-color: var(--color-petrol);
+  }
+
+  /* Scrollbar sutil em todas as páginas e componentes com rolagem */
+  * {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: color-mix(in srgb, var(--color-slate) 35%, transparent) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background: color-mix(in srgb, var(--color-slate) 35%, transparent) padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--color-slate) 60%, transparent) padding-box;
+  }
+  body {
+    @apply min-h-dvh font-sans text-text antialiased;
+    /* Degradê de cima para baixo: branco (principal) -> azul (terciária). */
+    background: linear-gradient(to bottom, var(--color-primary), var(--color-tertiary)) fixed;
+  }
+}
