@@ -36,12 +36,12 @@ filmes, e registra notas (em meia estrela) e resenhas.
 ### Pré-requisitos
 
 - **Python 3.11+** e **Node.js 20.19+**
-- Os **CSVs da atividade**, que não são versionados (~230 MB)
 
 ### 1. CSVs
 
-Coloque as pastas `bases_atv_dev1/` e `bases_atv_dev_2/` na **raiz do repositório**. A carga
-procura os arquivos pelo nome, inclusive em subpastas; para outro local, use `--data-dir`.
+Os CSVs da atividade **já vêm no repositório**, nas pastas `bases_atv_dev1/` e
+`bases_atv_dev_2/` (~230 MB), então basta clonar. A carga procura os arquivos pelo nome,
+inclusive em subpastas; para usar CSVs de outro local, passe `--data-dir`.
 
 ### 2. Backend (http://localhost:8000)
 
@@ -53,7 +53,7 @@ source .venv/Scripts/activate      # PowerShell: .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 cp .env.example .env
 alembic upgrade head               # cria as tabelas
-python -m app.scripts.seed         # carrega e limpa os CSVs (alguns minutos)
+python -m app.scripts.seed         # carrega e limpa os CSVs (~1 min 30 s)
 uvicorn app.main:app --reload
 ```
 
@@ -163,5 +163,5 @@ um único `DELETE`, com o `ON DELETE CASCADE` do banco removendo avaliações e 
 
 **Limitações conhecidas.** Alguns "nomes" de pessoa ainda são fragmentos de frase vindos
 da origem (~500 vínculos de 745 mil), e não foram removidos para não apagar nomes reais
-longos. A carga completa leva alguns minutos, porque confere as chaves estrangeiras linha a
-linha.
+longos. A carga completa leva cerca de 1 min 30 s (mais dentro de pastas sincronizadas, como o
+OneDrive), porque confere as chaves estrangeiras linha a linha.

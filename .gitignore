@@ -18,3 +18,6 @@ htmlcov/
 # Sistema operacional e IDE
 .DS_Store
 .vscode/
+
+# Enunciado da atividade (material da Visagio, com direitos reservados)
+/*.pdf
