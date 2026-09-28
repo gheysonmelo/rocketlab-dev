@@ -10,6 +10,7 @@ from app.core.pagination import Page, PageParams, page_params
 from app.db.session import get_db
 from app.movies import repository, service
 from app.movies.schemas import (
+    GenreRead,
     MovieDetail,
     MovieSummary,
     MovieWrite,
@@ -20,6 +21,12 @@ from app.movies.schemas import (
 Session = Annotated[AsyncSession, Depends(get_db)]
 
 movies_router = APIRouter(prefix="/movies", tags=["movies"])
+genres_router = APIRouter(prefix="/genres", tags=["genres"])
+
+
+@genres_router.get("", response_model=list[GenreRead], summary="Gêneros disponíveis")
+async def list_genres(session: Session) -> list[GenreRead]:
+    return [GenreRead.model_validate(genre) for genre in await repository.list_genres(session)]
 
 
 @movies_router.get("", response_model=Page[MovieSummary], summary="Catálogo paginado")

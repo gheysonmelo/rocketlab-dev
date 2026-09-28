@@ -58,3 +58,10 @@ async def test_list_movies_rejects_invalid_params(client: httpx.AsyncClient, par
     response = await client.get("/movies", params=params)
 
     assert response.status_code == 422
+
+
+async def test_list_genres(client: httpx.AsyncClient) -> None:
+    response = await client.get("/genres")
+
+    assert response.status_code == 200
+    assert [g["nome_genero"] for g in response.json()] == ["Drama", "History"]

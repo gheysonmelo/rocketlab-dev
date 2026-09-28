@@ -8,7 +8,7 @@ from sqlalchemy import Select, func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.movies.models import DimMovie, DimPerson, MovieReview
+from app.movies.models import DimGenre, DimMovie, DimPerson, MovieReview
 from app.movies.schemas import DIRECTOR
 
 
@@ -88,3 +88,7 @@ async def list_reviews(
         .limit(limit)
     )
     return list((await session.scalars(stmt)).all()), total
+
+
+async def list_genres(session: AsyncSession) -> list[DimGenre]:
+    return list((await session.scalars(select(DimGenre).order_by(DimGenre.nome_genero))).all())
