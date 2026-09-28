@@ -35,9 +35,10 @@ LOAD_ORDER = [
     ("bridge_movie_company", "bridge_movie_company.csv"),
     ("bridge_movie_person", "bridge_movie_person.csv"),
     ("fact_movies_performance", "fact_movies_performance.csv"),
-    ("dim_reviews", "dim_reviews.csv"),
     # Atenção: o arquivo se chama "movies_reviews", mas a tabela é "movie_reviews".
     ("movie_reviews", "movies_reviews.csv"),
+    # dim_reviews.csv não é carregado: o resumo não bate com as avaliações individuais
+    # (só ~78% das médias coincidem), então ele é recalculado (rebuild_review_summary).
 ]
 
 Row = dict[str, str | None]
@@ -101,6 +102,26 @@ def remove_placeholder_people(connection: sqlite3.Connection) -> int:
     return len(ids)
 
 
+def rebuild_review_summary(connection: sqlite3.Connection) -> int:
+    """Preenche dim_reviews (quantidade e média por filme) a partir de movie_reviews.
+
+    As avaliações individuais são a fonte da verdade; o resumo é derivado delas.
+    Segue a convenção dos CSVs: sk_review_id é igual ao sk_movie_id.
+    """
+
+    connection.execute("DELETE FROM dim_reviews")
+    connection.execute(
+        """
+        INSERT INTO dim_reviews
+            (sk_review_id, sk_movie_id, qtd_avaliacoes_usuarios, nota_media_usuarios)
+        SELECT sk_movie_id, sk_movie_id, COUNT(*), ROUND(AVG(nota), 2)
+        FROM movie_reviews
+        GROUP BY sk_movie_id
+        """
+    )
+    return connection.execute("SELECT COUNT(*) FROM dim_reviews").fetchone()[0]
+
+
 def seed(db_path: Path, data_dir: Path, reset: bool) -> None:
     files = {table: find_csv(data_dir, filename) for table, filename in LOAD_ORDER}
 
@@ -120,6 +141,7 @@ def seed(db_path: Path, data_dir: Path, reset: bool) -> None:
         # "with connection" abre uma única transação: ou tudo entra, ou nada entra.
         with connection:
             if reset:
+                connection.execute("DELETE FROM dim_reviews")
                 for table, _ in reversed(LOAD_ORDER):
                     connection.execute(f"DELETE FROM {table}")
             for table, _ in LOAD_ORDER:
@@ -128,6 +150,8 @@ def seed(db_path: Path, data_dir: Path, reset: bool) -> None:
                 print(f"{table:<25} {count:>9,} linhas  {time.perf_counter() - started:5.1f}s")
             removed = remove_placeholder_people(connection)
             print(f"{'dim_people':<25} {removed:>9,} removidas (idiomas, países, gêneros...)")
+            summaries = rebuild_review_summary(connection)
+            print(f"{'dim_reviews':<25} {summaries:>9,} resumos recalculados das avaliações")
     finally:
         connection.close()
 
