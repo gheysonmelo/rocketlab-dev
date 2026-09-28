@@ -64,5 +64,7 @@ async def get_movie(session: AsyncSession, movie_id: str) -> DimMovie | None:
             selectinload(DimMovie.companies),
             selectinload(DimMovie.performance),
         )
+        # Relê do banco mesmo que o filme já esteja na sessão (ex.: logo após uma edição).
+        .execution_options(populate_existing=True)
     )
     return (await session.scalars(stmt)).one_or_none()

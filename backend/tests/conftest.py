@@ -17,6 +17,7 @@ from app.movies.models import (
     DimPerson,
     DimReview,
     FactMoviePerformance,
+    MovieReview,
 )
 
 
@@ -60,6 +61,9 @@ def sample_movies() -> list[DimMovie]:
                 nota_tmdb=8.1,
                 qtd_tmdb=9000,
             ),
+            reviews=[
+                MovieReview(sk_movie_review_id="r-1", nome="Ana", nota=9.0, comentario="Ótimo.")
+            ],
             reviews_summary=DimReview(
                 sk_review_id="m-oppenheimer", qtd_avaliacoes_usuarios=2, nota_media_usuarios=8.8
             ),

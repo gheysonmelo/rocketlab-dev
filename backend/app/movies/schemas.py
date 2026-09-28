@@ -2,8 +2,19 @@
 
 from datetime import date
 from decimal import Decimal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    StringConstraints,
+    UrlConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.movies.models import DimMovie, FactMoviePerformance
 
@@ -152,3 +163,69 @@ class MovieDetail(MovieSummary):
             produtoras=[CompanyRead.model_validate(company) for company in movie.companies],
             desempenho=PerformanceRead.from_model(movie.performance) if movie.performance else None,
         )
+
+
+# ---------------------------------------------------------------------------
+# Entrada: cadastro e edição
+# ---------------------------------------------------------------------------
+
+MovieStatus = Literal["Lançado", "Pós-Produção", "Em Produção", "Planejado"]
+
+
+def _blank_to_none(value: Any) -> Any:
+    """Campo opcional enviado vazio ("") é tratado como não informado."""
+
+    return None if isinstance(value, str) and not value.strip() else value
+
+
+Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+PersonName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+OptionalText = Annotated[
+    Annotated[str, StringConstraints(strip_whitespace=True, max_length=4000)] | None,
+    BeforeValidator(_blank_to_none),
+]
+OptionalUrl = Annotated[
+    Annotated[HttpUrl, UrlConstraints(max_length=2048)] | None,
+    BeforeValidator(_blank_to_none),
+]
+
+
+class MovieWrite(BaseModel):
+    """Dados para cadastrar (POST) ou substituir (PUT) um filme."""
+
+    # Campo desconhecido é erro: pega de cara um nome digitado errado no front.
+    model_config = ConfigDict(extra="forbid")
+
+    titulo: Title
+    diretores: list[PersonName] = Field(default_factory=list, max_length=10)
+    genero_ids: list[str] = Field(default_factory=list, max_length=19)
+    data_lancamento: date | None = None
+    ano_lancamento: int | None = Field(default=None, ge=1870, le=2100)
+    duracao_minutos: int | None = Field(default=None, ge=1, le=20000)
+    status_filme: MovieStatus = "Lançado"
+    sinopse: OptionalText = None
+    url_poster: OptionalUrl = None
+    url_backdrop: OptionalUrl = None
+
+    @field_validator("diretores", "genero_ids")
+    @classmethod
+    def _without_duplicates(cls, values: list[str]) -> list[str]:
+        """Remove repetições (sem diferenciar maiúsculas), mantendo a ordem."""
+
+        seen: set[str] = set()
+        unique: list[str] = []
+        for value in values:
+            if value.casefold() not in seen:
+                seen.add(value.casefold())
+                unique.append(value)
+        return unique
+
+    @model_validator(mode="after")
+    def _year_matches_date(self) -> "MovieWrite":
+        if self.data_lancamento is None:
+            return self
+        if self.ano_lancamento is None:
+            self.ano_lancamento = self.data_lancamento.year
+        elif self.ano_lancamento != self.data_lancamento.year:
+            raise ValueError("ano_lancamento deve ser o mesmo ano de data_lancamento.")
+        return self
